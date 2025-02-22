@@ -1,26 +1,43 @@
 {
-  "name": "audio-recorder-api",
+  "name": "sanji",
   "version": "1.0.0",
-  "description": "Node.js audio recording API with Deepgram transcription and OpenAI TTS",
-  "main": "dist/app.js",
+  "description": "A real-time voice agent framework",
   "type": "module",
-  "scripts": {
-    "start": "node dist/app.js",
-    "build": "tsc",
-    "dev": "npx tsx src/app.ts"
+  "main": "dist/agents/BaseAgent.js",
+  "bin": {
+    "sanji": "dist/cli.js"
   },
+  "exports": {
+    ".": "./dist/agents/BaseAgent.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx app.ts",
+    "dev": "tsx watch app.ts"
+  },
+  "keywords": [
+    "voice",
+    "agent",
+    "ai",
+    "speech",
+    "openai",
+    "deepgram"
+  ],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "@cartesia/cartesia-js": "^2.1.7",
-    "@deepgram/sdk": "^2.4.0",
-    "dotenv": "^16.4.7",
+    "@cartesia/cartesia-js": "^1.3.0",
+    "@deepgram/sdk": "^3.0.0",
+    "dotenv": "^16.0.3",
     "node-microphone": "^0.1.6",
-    "openai": "^4.85.3",
-    "play-sound": "^1.1.6"
+    "openai": "^4.0.0",
+    "play-sound": "^1.1.6",
+    "sox-stream": "^2.0.6",
+    "speaker": "^0.5.4"
   },
   "devDependencies": {
-    "@types/node": "^20.11.19",
-    "@types/play-sound": "^1.1.2",
-    "tsx": "^4.7.1",
-    "typescript": "^5.3.3"
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0"
   }
 }

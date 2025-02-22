@@ -3,23 +3,51 @@ import http from 'http';
 import mic from 'node-microphone';
 import pkg from '@deepgram/sdk';
 import OpenAI from 'openai';
+import CartesiaClient from "@cartesia/cartesia-js";
 import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-const { Deepgram } = pkg;
+const { createClient } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const port = 3000;
 const player = playSound({});
-let microphone = null;
-let deepgramLive = null; // Using any for now as Deepgram types are complex
+let currentAudioProcess = null; // Track current audio process
 // Initialize Deepgram
-const deepgram = new Deepgram(process.env.DEEPGRAM_API_KEY);
+const deepgram = createClient(process.env.DEEPGRAM_API_KEY || '');
 // Initialize OpenAI
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
+// Initialize Cartesia
+const cartesia = new CartesiaClient({
+    apiKey: process.env.CARTESIA_API_KEY || ''
+});
+// Function to stop current audio playback
+function stopCurrentAudio() {
+    if (currentAudioProcess) {
+        currentAudioProcess.kill();
+        currentAudioProcess = null;
+    }
+}
+let microphone = null;
+let deepgramLive = null;
+let websocket = null;
+async function initializeCartesia() {
+    try {
+        websocket = cartesia.tts.websocket({
+            container: "raw",
+            encoding: "pcm_f32le",
+            sampleRate: 44100,
+        });
+        await websocket.connect();
+        console.log('Cartesia WebSocket connected');
+    }
+    catch (error) {
+        console.error('Failed to connect to Cartesia:', error);
+    }
+}
 // Function to stream response from OpenAI and play TTS
 async function streamOpenAIResponse(text) {
     try {
@@ -47,36 +75,46 @@ async function streamOpenAIResponse(text) {
                 fullResponse += content;
             }
         }
-        console.log('\n'); // New line after response is complete
-        // Create responses directory if it doesn't exist
-        const responsesDir = path.join(__dirname, '..', 'responses');
-        await fs.mkdir(responsesDir, { recursive: true });
-        // Generate unique filename
-        const filename = path.join(responsesDir, `response-${Date.now()}.mp3`);
-        try {
-            // Use OpenAI TTS to convert the response to speech
-            const mp3 = await openai.audio.speech.create({
-                model: "tts-1",
-                voice: "alloy",
-                input: fullResponse,
-            });
-            // Convert the response to buffer and save it
-            const buffer = Buffer.from(await mp3.arrayBuffer());
-            await fs.writeFile(filename, buffer);
-            // Play the audio response
-            console.log('Playing response...');
-            player.play(filename, (err) => {
-                if (err) {
-                    console.error('Error playing audio:', err);
-                }
-                // Delete the file after playing
-                fs.unlink(filename).catch(err => {
-                    console.error('Error deleting audio file:', err);
+        console.log('\n');
+        // Generate and play TTS using Cartesia
+        if (fullResponse) {
+            try {
+                const response = await cartesia.tts.bytes({
+                    model_id: "sonic-english",
+                    transcript: fullResponse,
+                    voice: {
+                        mode: "id",
+                        id: "a0e99841-438c-4a64-b679-ae501e7d6091",
+                    },
+                    language: "en",
+                    output_format: {
+                        container: "wav",
+                        sample_rate: 44100,
+                        encoding: "pcm_f32le",
+                    },
                 });
-            });
-        }
-        catch (error) {
-            console.error('TTS or playback error:', error);
+                // Create a temporary file to store the audio
+                const tempFile = path.join(__dirname, `temp-${Date.now()}.wav`);
+                await fs.writeFile(tempFile, new Uint8Array(response));
+                // Stop any currently playing audio
+                stopCurrentAudio();
+                // Play the audio file and store the process
+                currentAudioProcess = player.play(tempFile, async (err) => {
+                    if (err)
+                        console.error('Error playing audio:', err);
+                    currentAudioProcess = null;
+                    // Delete the temporary file after playing
+                    try {
+                        await fs.unlink(tempFile);
+                    }
+                    catch (err) {
+                        console.error('Error deleting temp file:', err);
+                    }
+                });
+            }
+            catch (error) {
+                console.error('TTS error:', error);
+            }
         }
     }
     catch (error) {
@@ -86,21 +124,21 @@ async function streamOpenAIResponse(text) {
 }
 async function startRecording() {
     try {
-        // Create a new microphone instance
         microphone = new mic();
-        // Create Deepgram live transcription connection
-        deepgramLive = await deepgram.transcription.live({
+        deepgramLive = await deepgram.listen.live({
             punctuate: true,
             language: 'en-US',
             encoding: 'linear16',
             sample_rate: 16000,
+            vad_events: true
         });
-        // Handle Deepgram events
         deepgramLive.addListener('transcriptReceived', async (transcription) => {
             const transcriptData = JSON.parse(transcription);
-            if (transcriptData.channel?.alternatives?.[0]?.transcript) {
+            if (transcriptData.channel?.alternatives?.[0]) {
                 const transcript = transcriptData.channel.alternatives[0].transcript;
                 if (transcript.trim()) {
+                    // Stop current audio when new speech is detected
+                    stopCurrentAudio();
                     console.log('\nYou said:', transcript);
                     await streamOpenAIResponse(transcript);
                 }
@@ -112,16 +150,13 @@ async function startRecording() {
         deepgramLive.addListener('close', () => {
             console.log('Deepgram connection closed');
         });
-        // Start recording
         const audioStream = microphone.startRecording();
         console.log('Started recording... Speak something and I will respond!');
-        // Listen for data from the microphone and send to Deepgram
         audioStream.on('data', (data) => {
             if (deepgramLive.getReadyState() === 1) {
                 deepgramLive.send(data);
             }
         });
-        // Handle errors
         audioStream.on('error', (error) => {
             console.error('Error recording:', error);
         });
@@ -189,6 +224,7 @@ const server = http.createServer(async (req, res) => {
     }
 });
 // Start the server
-server.listen(port, () => {
+server.listen(port, async () => {
     console.log(`Server is running on http://localhost:${port}`);
+    await initializeCartesia();
 });
