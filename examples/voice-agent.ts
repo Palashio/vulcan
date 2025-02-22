@@ -1,8 +1,10 @@
 import 'dotenv/config';
-import { DeepgramService } from './src/services/DeepgramService.js';
-import { OpenAIService } from './src/services/OpenAIService.js';
-import { CartesiaService } from './src/services/CartesiaService.js';
-import { Pipeline } from './src/services/Pipeline.js';
+import {
+    DeepgramService,
+    OpenAIService,
+    CartesiaService,
+    Pipeline
+} from 'sanji';
 import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -15,15 +17,7 @@ async function main() {
     const player = playSound({});
 
     // Initialize services
-    const transcriptionService = new DeepgramService(
-        process.env.DEEPGRAM_API_KEY || '',
-        {
-            onTranscript: () => {},  // Will be overridden by pipeline
-            onError: () => {},       // Will be overridden by pipeline
-            onReady: () => {},       // Will be overridden by pipeline
-            onClose: () => {}        // Will be overridden by pipeline
-        }
-    );
+    const transcriptionService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
 
     const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
         model: "gpt-3.5-turbo",

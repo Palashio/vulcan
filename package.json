@@ -3,17 +3,29 @@
   "version": "1.0.0",
   "description": "A real-time voice agent framework",
   "type": "module",
-  "main": "dist/agents/BaseAgent.js",
-  "bin": {
-    "sanji": "dist/cli.js"
-  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/agents/BaseAgent.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./services": {
+      "types": "./dist/services/index.d.ts",
+      "import": "./dist/services/index.js"
+    }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
-    "start": "tsx app.ts",
-    "dev": "tsx watch app.ts"
+    "start": "tsx examples/voice-agent.ts",
+    "dev": "tsx watch examples/voice-agent.ts",
+    "prepublishOnly": "npm run build",
+    "link": "npm run build && npm link",
+    "example": "npm run build && tsx examples/voice-agent.ts"
   },
   "keywords": [
     "voice",

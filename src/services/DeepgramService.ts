@@ -6,9 +6,15 @@ export class DeepgramService implements TranscriptionService {
     private liveTranscription: any = null;
     private events: TranscriptionEvents;
 
-    constructor(apiKey: string, events: TranscriptionEvents) {
+    constructor(apiKey: string, events?: TranscriptionEvents) {
         this.client = createClient(apiKey);
-        this.events = events;
+        // Set default empty handlers if no events provided
+        this.events = events || {
+            onTranscript: () => {},
+            onError: () => {},
+            onReady: () => {},
+            onClose: () => {}
+        };
     }
 
     setEventHandlers(events: TranscriptionEvents): void {
