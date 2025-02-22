@@ -1,4 +1,3 @@
-import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
 import OpenAI from 'openai';
 import CartesiaClient from "@cartesia/cartesia-js";
 import mic from 'node-microphone';
@@ -6,58 +5,44 @@ import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { BaseAgent, AgentResponse } from './BaseAgent.js';
+import { BaseAgent, AgentResponse, AgentConfig } from './BaseAgent.js';
+import { TranscriptionService } from '../services/TranscriptionService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export interface VoiceAgentConfig {
-    deepgramApiKey?: string;
+export interface VoiceAgentConfig extends AgentConfig {
     openaiApiKey?: string;
     cartesiaApiKey?: string;
-    systemPrompt?: string;
     onTranscript?: (text: string) => void;
     onResponse?: (text: string) => void;
-    onError?: (error: Error) => void;
     onRecordingStart?: () => void;
-}
-
-export interface VoiceAgentResponse {
-    success: boolean;
-    message?: string;
-    error?: string;
-}
-
-export interface VoiceAgent {
-    start(): Promise<VoiceAgentResponse>;
-    stop(): Promise<VoiceAgentResponse>;
+    transcriptionService: TranscriptionService;
 }
 
 export class VoiceAgent extends BaseAgent {
     private microphone: any = null;
-    private deepgramLive: any = null;
     private readonly player = playSound({});
-    private readonly deepgram: any;
     private readonly openai: OpenAI;
     private readonly cartesia: CartesiaClient;
-    private readonly config: VoiceAgentConfig;
-    protected isActive: boolean = false;
+    private readonly voiceConfig: VoiceAgentConfig;
+    private readonly transcriptionService: TranscriptionService;
 
-    constructor(config: VoiceAgentConfig = {}) {
+    constructor(config: VoiceAgentConfig) {
         super({
             systemPrompt: config.systemPrompt,
             onError: config.onError
         });
-        this.config = config;
+        this.voiceConfig = config;
+        this.transcriptionService = config.transcriptionService;
         
         console.log('🔍 Initializing clients...');
-        this.deepgram = createClient(config.deepgramApiKey || process.env.DEEPGRAM_API_KEY || '');
         this.openai = new OpenAI({ apiKey: config.openaiApiKey || process.env.OPENAI_API_KEY });
         this.cartesia = new CartesiaClient({ apiKey: config.cartesiaApiKey || process.env.CARTESIA_API_KEY || '' });
         console.log('✅ Clients initialized');
     }
 
-    async start(): Promise<VoiceAgentResponse> {
+    async start(): Promise<AgentResponse> {
         try {
             if (this.isActive) {
                 return { success: false, error: 'Agent is already active' };
@@ -70,85 +55,46 @@ export class VoiceAgent extends BaseAgent {
             } catch (error) {
                 const errorMsg = 'Failed to initialize microphone. Make sure your microphone is connected and accessible.';
                 console.error('❌', errorMsg, error);
-                if (this.config.onError) this.config.onError(new Error(errorMsg));
+                if (this.voiceConfig.onError) this.voiceConfig.onError(new Error(errorMsg));
                 return { success: false, error: errorMsg };
             }
             
-            console.log('🌐 Connecting to Deepgram...');
+            console.log('🌐 Starting transcription service...');
             try {
-                this.deepgramLive = await this.deepgram.listen.live({
+                await this.transcriptionService.start({
                     model: "nova-3",
                     punctuate: true,
                     language: 'en-US',
                     encoding: 'linear16',
-                    sample_rate: 16000,
+                    sampleRate: 16000,
                 });
-                console.log('✅ Deepgram connection established');
+                console.log('✅ Transcription service started');
             } catch (error) {
-                const errorMsg = 'Failed to connect to Deepgram. Check your API key and internet connection.';
+                const errorMsg = 'Failed to start transcription service';
                 console.error('❌', errorMsg, error);
-                if (this.config.onError) this.config.onError(new Error(errorMsg));
+                if (this.voiceConfig.onError) this.voiceConfig.onError(new Error(errorMsg));
                 return { success: false, error: errorMsg };
             }
-
-            this.deepgramLive.on(LiveTranscriptionEvents.Open, () => {
-                console.log('🎤 Deepgram WebSocket opened and ready for audio');
-            });
-
-            this.deepgramLive.on(LiveTranscriptionEvents.Close, () => {
-                console.log('🔴 Deepgram WebSocket closed');
-            });
-
-            this.deepgramLive.on(LiveTranscriptionEvents.Transcript, async (data: any) => {
-                console.log('📥 Raw transcription:', JSON.stringify(data));
-                try {
-                    if (data.channel?.alternatives?.[0]) {
-                        const transcript = data.channel.alternatives[0].transcript;
-                        if (transcript.trim()) {
-                            console.log('\n👤 You said:', transcript);
-                            if (this.config.onTranscript) {
-                                this.config.onTranscript(transcript);
-                            }
-                            await this.handleTranscript(transcript);
-                        }
-                    }
-                } catch (error) {
-                    console.error('❌ Failed to parse transcription:', error);
-                }
-            });
-
-            this.deepgramLive.on(LiveTranscriptionEvents.Error, (error: Error) => {
-                console.error('❌ Deepgram error:', error);
-                if (this.config.onError) this.config.onError(error);
-            });
 
             console.log('🎙️ Starting audio recording...');
             const audioStream = this.microphone.startRecording();
             console.log('✅ Audio recording started');
             
-            if (this.config.onRecordingStart) {
-                this.config.onRecordingStart();
+            if (this.voiceConfig.onRecordingStart) {
+                this.voiceConfig.onRecordingStart();
             }
 
-            let lastKeepAliveTime = Date.now();
             audioStream.on('data', (data: Buffer) => {
-                if (this.deepgramLive.getReadyState() === 1) {
-                    this.deepgramLive.send(data);
-                    
-                    // Send keep-alive every 10 seconds to prevent timeout
-                    const now = Date.now();
-                    if (now - lastKeepAliveTime > 10000) {
-                        this.deepgramLive.keepAlive();
-                        lastKeepAliveTime = now;
-                    }
+                if (this.transcriptionService.isReady()) {
+                    this.transcriptionService.sendAudio(data);
                 } else {
-                    console.log('⚠️ Deepgram not ready, WebSocket state:', this.deepgramLive.getReadyState());
+                    console.log('⚠️ Transcription service not ready');
                 }
             });
 
             audioStream.on('error', (error: Error) => {
                 console.error('❌ Microphone error:', error);
-                if (this.config.onError) this.config.onError(error);
+                if (this.voiceConfig.onError) this.voiceConfig.onError(error);
             });
 
             this.isActive = true;
@@ -156,12 +102,12 @@ export class VoiceAgent extends BaseAgent {
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : 'Failed to start agent';
             console.error('❌ Unexpected error:', errorMsg);
-            if (this.config.onError) this.config.onError(new Error(errorMsg));
+            if (this.voiceConfig.onError) this.voiceConfig.onError(new Error(errorMsg));
             return { success: false, error: errorMsg };
         }
     }
 
-    async stop(): Promise<VoiceAgentResponse> {
+    async stop(): Promise<AgentResponse> {
         try {
             if (!this.isActive) {
                 return { success: false, error: 'Agent is not active' };
@@ -172,11 +118,8 @@ export class VoiceAgent extends BaseAgent {
                 this.microphone.stopRecording();
             }
             
-            console.log('👋 Closing Deepgram connection...');
-            if (this.deepgramLive) {
-                this.deepgramLive.finish();
-                this.deepgramLive = null;
-            }
+            console.log('👋 Stopping transcription service...');
+            await this.transcriptionService.stop();
 
             this.isActive = false;
             return { success: true, message: 'Agent stopped successfully' };
@@ -194,7 +137,7 @@ export class VoiceAgent extends BaseAgent {
                 messages: [
                     {
                         role: "system",
-                        content: this.config.systemPrompt || "You are a helpful assistant engaging in real-time conversation. Keep responses concise and natural."
+                        content: this.voiceConfig.systemPrompt || "You are a helpful assistant engaging in real-time conversation. Keep responses concise and natural."
                     },
                     {
                         role: "user",
@@ -209,8 +152,8 @@ export class VoiceAgent extends BaseAgent {
             for await (const chunk of stream) {
                 const content = chunk.choices[0]?.delta?.content || '';
                 if (content) {
-                    if (this.config.onResponse) {
-                        this.config.onResponse(content);
+                    if (this.voiceConfig.onResponse) {
+                        this.voiceConfig.onResponse(content);
                     }
                     fullResponse += content;
                 }
@@ -242,7 +185,7 @@ export class VoiceAgent extends BaseAgent {
                 this.player.play(tempFile, (err?: Error) => {
                     if (err) {
                         console.error('❌ Error playing audio:', err);
-                        if (this.config.onError) this.config.onError(err);
+                        if (this.voiceConfig.onError) this.voiceConfig.onError(err);
                     }
                     // Delete the temporary file after playing
                     fs.unlink(tempFile).catch(err => {
@@ -252,7 +195,7 @@ export class VoiceAgent extends BaseAgent {
             }
         } catch (error) {
             console.error('❌ Failed to handle transcript:', error);
-            if (this.config.onError) this.config.onError(error as Error);
+            if (this.voiceConfig.onError) this.voiceConfig.onError(error as Error);
         }
     }
 } 
