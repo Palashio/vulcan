@@ -1,0 +1,26 @@
+{
+  "name": "audio-recorder-api",
+  "version": "1.0.0",
+  "description": "Node.js audio recording API with Deepgram transcription and OpenAI TTS",
+  "main": "dist/app.js",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/app.js",
+    "build": "tsc",
+    "dev": "npx tsx src/app.ts"
+  },
+  "dependencies": {
+    "@cartesia/cartesia-js": "^2.1.7",
+    "@deepgram/sdk": "^2.4.0",
+    "dotenv": "^16.4.7",
+    "node-microphone": "^0.1.6",
+    "openai": "^4.85.3",
+    "play-sound": "^1.1.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "@types/play-sound": "^1.1.2",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}
