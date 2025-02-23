@@ -4,7 +4,7 @@ import {
     OpenAIService,
     CartesiaService,
     Pipeline
-} from 'sanji';
+} from 'vulcan';
 import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
