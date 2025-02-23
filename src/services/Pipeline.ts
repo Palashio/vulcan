@@ -1,4 +1,6 @@
 import { TranscriptionService, TranscriptionConfig } from './TranscriptionService.js';
+import { ContextManager } from './ContextManager.js';
+export { ContextManager };
 import mic from 'node-microphone';
 import readline from 'readline';
 
@@ -42,6 +44,7 @@ export interface PipelineConfig {
     ttsConfig?: TTSConfig;
     textOnly?: boolean;
     textChatOptions?: TextChatOptions;
+    contextManager?: ContextManager;
     onTranscript?: (text: string) => void;
     onResponse?: (text: string) => void;
     onError?: (error: Error) => void;
@@ -53,6 +56,7 @@ export class Pipeline {
     private llmService: LLMService;
     private ttsService: TTSService;
     private config: PipelineConfig;
+    private contextManager: ContextManager | undefined;
     private isActive: boolean = false;
     private microphone: any = null;
     private rl: readline.Interface | null = null;
@@ -61,11 +65,20 @@ export class Pipeline {
         transcriptionService: TranscriptionService,
         llmService: LLMService,
         ttsService: TTSService,
-        config: PipelineConfig
+        config: PipelineConfig,
+        contextManager?: ContextManager
     ) {
         this.transcriptionService = transcriptionService;
         this.llmService = llmService;
         this.ttsService = ttsService;
+        this.config = config;
+        
+        // Initialize context manager from either source
+        this.contextManager = contextManager || config.contextManager;
+        if (this.contextManager) {
+            console.log('🔄 Initializing context manager...');
+            this.contextManager.setLLMService(llmService);
+        }
 
         // Set default handlers for text-only mode
         if (config.textOnly) {
@@ -81,8 +94,6 @@ export class Pipeline {
             };
         }
         
-        this.config = config;
-
         // Set up transcription service event handlers if not in text-only mode
         if (!config.textOnly) {
             this.transcriptionService.setEventHandlers({
@@ -186,16 +197,34 @@ export class Pipeline {
                 this.config.onTranscript(text);
             }
 
-            // Process through LLM
+            // Store user's message in context if contextManager exists
+            if (this.contextManager) {
+                this.contextManager.addMessage('user', text);
+                console.log('\n📝 Context updated - Latest messages:', this.contextManager.getRecentMessages());
+            }
+
+            // Process through ContextManager or directly through LLM
             if (this.config.textOnly) {
                 console.log('\n🤖 Assistant:');
             }
             let fullResponse = '';
-            for await (const chunk of this.llmService.processText(text)) {
+            
+            const responseGenerator = this.contextManager 
+                ? this.contextManager.processWithContext(text)
+                : this.llmService.processText(text);
+
+            for await (const chunk of responseGenerator) {
                 if (this.config.onResponse) {
                     this.config.onResponse(chunk);
                 }
                 fullResponse += chunk;
+            }
+
+            // Store assistant's response in context if contextManager exists
+            if (fullResponse && this.contextManager) {
+                this.contextManager.addMessage('assistant', fullResponse);
+                console.log('\n📝 Context updated after assistant response:', this.contextManager.getRecentMessages());
+                console.log('\n🤖 Full Assistant Response:', fullResponse);
             }
 
             if (fullResponse) {

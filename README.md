@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/vulcan.svg)](https://badge.fury.io/js/vulcan)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
-A real-time voice agent framework with streaming support for text and voice interactions. Built with modular services architecture for speech-to-text, language models, and text-to-speech synthesis.
+A real-time voice agent framework with streaming support for text and voice interactions. Built with modular services architecture for speech-to-text, language models, and text-to-speech synthesis. Features conversation context management for maintaining state and history across interactions.
 
 ## Supported Services
 
@@ -16,17 +16,21 @@ A real-time voice agent framework with streaming support for text and voice inte
 ## Quick Start
 
 ```typescript
-import { DeepgramService, AnthropicService, CartesiaService, Pipeline } from 'vulcan';
+import { DeepgramService, AnthropicService, CartesiaService, Pipeline, ContextManager } from 'vulcan';
+
+// Initialize context manager and services
+const contextManager = new ContextManager({
+    metadata: { sessionId: 'user-123' },
+    messages: [{ role: 'system', content: 'You are a helpful voice assistant.', timestamp: Date.now() }]
+});
 
 // Initialize services with your API keys
 const pipeline = new Pipeline(
     new DeepgramService(process.env.DEEPGRAM_API_KEY),
-    new AnthropicService(process.env.ANTHROPIC_API_KEY, {
-        model: "claude-3-sonnet-20240229",
-        systemPrompt: "You are a helpful voice assistant."
-    }),
+    new AnthropicService(process.env.ANTHROPIC_API_KEY),
     new CartesiaService(process.env.CARTESIA_API_KEY),
     {
+        contextManager, // Pass the context manager to maintain conversation state
         onTranscript: (text) => console.log('User:', text),
         onResponse: (text) => console.log('AI:', text),
         onError: (error) => console.error('Error:', error.message)
@@ -34,6 +38,9 @@ const pipeline = new Pipeline(
 );
 
 await pipeline.start();
+
+// Access conversation history
+console.log('Recent messages:', contextManager.getRecentMessages());
 ```
 
 ## Environment Setup

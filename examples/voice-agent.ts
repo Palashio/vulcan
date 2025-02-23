@@ -4,7 +4,8 @@ import {
     OpenAIService,
     ElevenLabsService,
     CartesiaService,
-    Pipeline
+    Pipeline,
+    ContextManager
 } from 'vulcan';
 import playSound from 'play-sound';
 import { promises as fs } from 'fs';
@@ -16,7 +17,7 @@ const __dirname = path.dirname(__filename);
 
 async function main() {
     const player = playSound({});
-
+    const contextManager = new ContextManager();
     // Initialize services
     const sttService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
 
@@ -47,6 +48,7 @@ async function main() {
         llmService,
         ttsService,
         {
+            contextManager,
             onTranscript: (text) => {
                 console.log('\n👤 You said:', text);
             },

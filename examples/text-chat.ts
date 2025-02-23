@@ -4,7 +4,8 @@ import {
     OpenAIService,
     CartesiaService,
     AnthropicService,
-    Pipeline
+    Pipeline,
+    ContextManager
 } from '../src/index.js';
 import playSound from 'play-sound';
 import { promises as fs } from 'fs';
@@ -20,16 +21,16 @@ async function main() {
     // Initialize services
     console.log('🚀 Initializing services...');
     const sttService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
-    // const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
-    //     model: "gpt-3.5-turbo",
-    //     maxTokens: 100,
-    //     systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
-    // });
-    const llmService = new AnthropicService(process.env.ANTHROPIC_API_KEY || '', {
-        model: "claude-3-sonnet-20240229",
+    const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
+        model: "gpt-3.5-turbo",
         maxTokens: 100,
         systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
     });
+    // const llmService = new AnthropicService(process.env.ANTHROPIC_API_KEY || '', {
+    //     model: "claude-3-sonnet-20240229",
+    //     maxTokens: 100,
+    //     systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
+    // });
     const ttsService = new CartesiaService(process.env.CARTESIA_API_KEY || '', {
         model: "sonic-english",
         voice: {
@@ -38,13 +39,24 @@ async function main() {
         }
     });
 
-    // Create the pipeline in text-only mode
+    // Initialize ContextManager before creating the pipeline
+    const contextManager = new ContextManager();
+    console.log('📝 Context Manager initialized');
+
+    // Create the pipeline in text-only mode with context manager
     const pipeline = new Pipeline(
         sttService,
         llmService,
         ttsService,
         {
             textOnly: true,
+            contextManager: contextManager,
+            onTranscript: (text) => {
+                console.log('\n👤 User:', text);
+            },
+            onResponse: (text) => {
+                process.stdout.write(text);
+            },
             onAudioReady: async (audio) => {
                 try {
                     // Create a temporary file to store the audio

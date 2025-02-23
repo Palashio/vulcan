@@ -4,6 +4,7 @@ export { CartesiaService } from './CartesiaService.js';
 export { Pipeline } from './Pipeline.js';
 export { ElevenLabsService } from './ElevenLabsService.js';
 export { AnthropicService } from './AnthropicService.js';
+export { ContextManager } from './ContextManager.js';
 
 export type {
     TranscriptionService,
@@ -17,4 +18,9 @@ export type {
     TTSConfig,
     TTSService,
     PipelineConfig
-} from './Pipeline.js'; 
+} from './Pipeline.js';
+
+export type {
+    Message,
+    Context
+} from './ContextManager.js'; 

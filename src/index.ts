@@ -1,6 +1,7 @@
 // Export core pipeline and its types
 export {
     Pipeline,
+    ContextManager,
     type LLMConfig,
     type LLMService,
     type TTSConfig,
