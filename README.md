@@ -1,15 +1,4 @@
-# 🎭 Vulcan
-
-```
-__     __    _                 
-\ \   / /   | |                
- \ \ / /   _| | ___ __ _ _ __  
-  \ V / | | | |/ __/ _` | '_ \ 
-   | || |_| | | (_| (_| | | | |
-   |_| \__,_|_|\___\__,_|_| |_|
-```
-
-A modular voice agent framework for building real-time conversational AI applications. Vulcan provides a simple pipeline architecture for speech-to-text, language processing, and text-to-speech services.
+# Vulcan
 
 [![npm version](https://badge.fury.io/js/vulcan.svg)](https://badge.fury.io/js/vulcan)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
