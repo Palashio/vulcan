@@ -1,21 +1,22 @@
-// Export services
+// Export core pipeline and its types
+export {
+    Pipeline,
+    type LLMConfig,
+    type LLMService,
+    type TTSConfig,
+    type TTSService,
+    type TextChatOptions,
+    type PipelineConfig
+} from './services/Pipeline.js';
+
+// Export service implementations
 export { DeepgramService } from './services/DeepgramService.js';
 export { OpenAIService } from './services/OpenAIService.js';
 export { CartesiaService } from './services/CartesiaService.js';
 export { ElevenLabsService } from './services/ElevenLabsService.js';
-export { Pipeline } from './services/Pipeline.js';
 
-// Export interfaces and types
+// Export service interfaces
 export type {
     TranscriptionService,
-    TranscriptionConfig,
-    TranscriptionEvents
-} from './services/TranscriptionService.js';
-
-export type {
-    LLMConfig,
-    LLMService,
-    TTSConfig,
-    TTSService,
-    PipelineConfig
-} from './services/Pipeline.js'; 
+    TranscriptionConfig
+} from './services/TranscriptionService.js'; 

@@ -1,7 +1,6 @@
 export class BaseAgent {
-    isActive = false;
-    config;
     constructor(config) {
+        this.isActive = false;
         this.config = config;
     }
     handleError(error) {
