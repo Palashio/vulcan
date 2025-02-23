@@ -2,6 +2,7 @@
 export { DeepgramService } from './services/DeepgramService.js';
 export { OpenAIService } from './services/OpenAIService.js';
 export { CartesiaService } from './services/CartesiaService.js';
+export { ElevenLabsService } from './services/ElevenLabsService.js';
 export { Pipeline } from './services/Pipeline.js';
 
 // Export interfaces and types

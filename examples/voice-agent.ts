@@ -2,6 +2,7 @@ import 'dotenv/config';
 import {
     DeepgramService,
     OpenAIService,
+    ElevenLabsService,
     CartesiaService,
     Pipeline
 } from 'vulcan';
@@ -17,7 +18,7 @@ async function main() {
     const player = playSound({});
 
     // Initialize services
-    const transcriptionService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
+    const sttService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
 
     const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
         model: "gpt-3.5-turbo",
@@ -25,22 +26,24 @@ async function main() {
         systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
     });
 
+    // const ttsService = new ElevenLabsService(process.env.ELEVEN_LABS_API_KEY || '', {
+    //     modelId: 'eleven_monolingual_v1',
+    //     voiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel voice
+    //     stability: 0.5,
+    //     similarityBoost: 0.75
+    // });
+
     const ttsService = new CartesiaService(process.env.CARTESIA_API_KEY || '', {
         model: "sonic-english",
         voice: {
-            mode: "id",
+            mode: "id" as const,
             id: "a0e99841-438c-4a64-b679-ae501e7d6091"
-        },
-        outputFormat: {
-            container: "wav",
-            sample_rate: 44100,
-            encoding: "pcm_f32le"
         }
     });
 
     // Create the pipeline
     const pipeline = new Pipeline(
-        transcriptionService,
+        sttService,
         llmService,
         ttsService,
         {
