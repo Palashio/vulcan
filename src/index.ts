@@ -14,7 +14,7 @@ export { DeepgramService } from './services/DeepgramService.js';
 export { OpenAIService } from './services/OpenAIService.js';
 export { CartesiaService } from './services/CartesiaService.js';
 export { ElevenLabsService } from './services/ElevenLabsService.js';
-
+export { AnthropicService } from './services/AnthropicService.js';
 // Export service interfaces
 export type {
     TranscriptionService,

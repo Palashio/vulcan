@@ -3,6 +3,7 @@ import {
     DeepgramService,
     OpenAIService,
     CartesiaService,
+    AnthropicService,
     Pipeline
 } from '../src/index.js';
 import playSound from 'play-sound';
@@ -19,8 +20,13 @@ async function main() {
     // Initialize services
     console.log('🚀 Initializing services...');
     const sttService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
-    const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
-        model: "gpt-3.5-turbo",
+    // const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
+    //     model: "gpt-3.5-turbo",
+    //     maxTokens: 100,
+    //     systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
+    // });
+    const llmService = new AnthropicService(process.env.ANTHROPIC_API_KEY || '', {
+        model: "claude-3-sonnet-20240229",
         maxTokens: 100,
         systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
     });
