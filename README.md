@@ -10,8 +10,8 @@ A real-time voice agent framework with streaming support for text and voice inte
 | Component | Supported Services |
 |-----------|-------------------|
 | Speech-to-Text | [Deepgram](https://deepgram.com/) |
-| Language Models | [OpenAI](https://openai.com/) (GPT-3.5-turbo), [Anthropic](https://anthropic.com/) (Claude-3-Sonnet) |
-| Text-to-Speech | [Cartesia](https://cartesia.io/) (sonic-english), [ElevenLabs](https://elevenlabs.io/) |
+| Language Models | [OpenAI](https://openai.com/), [Anthropic](https://anthropic.com/) |
+| Text-to-Speech | [Cartesia](https://cartesia.io/), [ElevenLabs](https://elevenlabs.io/) |
 
 ## Quick Start
 
