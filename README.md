@@ -23,6 +23,14 @@ A modular voice agent framework for building real-time conversational AI applica
 - 🔄 Streaming responses for better UX
 - 🎯 Easy-to-use pipeline system
 
+## Supported Services
+
+| Component | Supported Services |
+|-----------|-------------------|
+| Speech-to-Text | [Deepgram](https://deepgram.com/) |
+| Language Models | [OpenAI](https://openai.com/) (GPT-3.5-turbo) |
+| Text-to-Speech | [Cartesia](https://cartesia.io/) (sonic-english), [ElevenLabs](https://elevenlabs.io/) |
+
 ## Installation
 
 ```bash

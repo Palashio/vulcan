@@ -26,6 +26,7 @@
     "test": "jest",
     "start:voice": "tsx examples/voice-agent.ts",
     "start:text": "tsx examples/text-chat.ts",
+    "start:web": "npx http-server examples -o web-tts.html",
     "dev:voice": "tsx watch examples/voice-agent.ts",
     "dev:text": "tsx watch examples/text-chat.ts",
     "example:voice": "tsx examples/voice-agent.ts",
