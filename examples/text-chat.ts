@@ -9,7 +9,6 @@ import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import readline from 'readline';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,15 +39,6 @@ async function main() {
         ttsService,
         {
             textOnly: true,
-            onTranscript: (text) => {
-                console.log(text);
-            },
-            onResponse: (text) => {
-                process.stdout.write(text);
-            },
-            onError: (error) => {
-                console.error(error.message);
-            },
             onAudioReady: async (audio) => {
                 try {
                     // Create a temporary file to store the audio
@@ -73,50 +63,11 @@ async function main() {
         }
     );
 
-    // Create readline interface for user input
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
-
     try {
-        // Start the pipeline
-        await pipeline.start();
-        console.log('✨ Interactive chat session started');
-        console.log('📝 Type your messages and press Enter');
-        console.log('❌ Type "exit" to quit\n');
-        
-        // Set the prompt
-        rl.setPrompt('> ');
-        rl.prompt();
-
-        // Handle user input
-        rl.on('line', async (input) => {
-            if (input.toLowerCase() === 'exit') {
-                console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                console.log('👋 Ending chat session...');
-                await pipeline.stop();
-                rl.close();
-                return;
-            }
-
-            try {
-                await pipeline.sendText(input);
-                rl.prompt(); // Show prompt after response
-            } catch (error) {
-                console.error('❌ Error processing input:', error);
-                rl.prompt();
-            }
-        });
-
-        // Handle readline close
-        rl.on('close', () => {
-            console.log('✨ Chat session ended. Goodbye!\n');
-            process.exit(0);
-        });
+        // Start the text chat interface
+        await pipeline.startTextChat();
     } catch (error) {
-        console.error('\n❌ Failed to start pipeline:', error);
-        rl.close();
+        console.error('\n❌ Failed to start text chat:', error);
         process.exit(1);
     }
 }
