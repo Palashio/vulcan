@@ -3,10 +3,10 @@ import {
     DeepgramService,
     OpenAIService,
     CartesiaService,
-    AnthropicService,
     Pipeline,
     ContextManager
-} from '../src/index.js';
+} from '../../src/index.js';
+import { functionTools, functionHandlers } from './functions.js';
 import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -23,48 +23,10 @@ async function main() {
         model: "gpt-4",
         maxTokens: 100,
         systemPrompt: "You are a helpful AI assistant. When users mention bananas, use the log_banana_mention function. When users mention apples, use the log_apple_mention function.",
-        tools: [{
-            name: "log_banana_mention",
-            description: "Log when someone talks about bananas",
-            parameters: {
-                type: "object",
-                properties: {
-                    message: {
-                        type: "string",
-                        description: "The message containing banana-related content"
-                    }
-                },
-                required: ["message"]
-            }
-        },
-        {
-            name: "log_apple_mention",
-            description: "Log when someone talks about apples",
-            parameters: {
-                type: "object",
-                properties: {
-                    message: {
-                        type: "string",
-                        description: "The message containing apple-related content"
-                    }
-                },
-                required: ["message"]
-            }
-        }],
-        functionHandlers: {
-            log_banana_mention: (args: { message: string }) => {
-                console.log('🍌 [BANANA MENTION]:', args.message);
-            },
-            log_apple_mention: (args: { message: string }) => {
-                console.log('🍎 [APPLE MENTION]:', args.message);
-            }
-        }
+        tools: functionTools,
+        functionHandlers: functionHandlers
     });
-    // const llmService = new AnthropicService(process.env.ANTHROPIC_API_KEY || '', {
-    //     model: "claude-3-sonnet-20240229",
-    //     maxTokens: 100,
-    //     systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
-    // });
+
     const ttsService = new CartesiaService(process.env.CARTESIA_API_KEY || '', {
         model: "sonic-english",
         voice: {

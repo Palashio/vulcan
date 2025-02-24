@@ -1,0 +1,5 @@
+Run
+```
+npm run build 
+./node_modules/.bin/tsx examples/text-chat/index.ts
+```
