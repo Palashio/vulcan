@@ -11,7 +11,6 @@ import playSound from 'play-sound';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -29,10 +28,6 @@ async function main() {
 
     const ttsService = new CartesiaService(process.env.CARTESIA_API_KEY || '', {
         model: "sonic-english",
-        voice: {
-            mode: "id" as const,
-            id: "a0e99841-438c-4a64-b679-ae501e7d6091"
-        }
     });
 
     // Initialize ContextManager before creating the pipeline
@@ -47,8 +42,19 @@ async function main() {
         {
             textOnly: true,
             contextManager: contextManager,
+            vadConfig: {
+                onSpeechStart: () => {
+                    console.log('\n[USER] Started speaking...');
+                },
+                onSpeechEnd: () => {
+                    console.log('[USER] Finished speaking');
+                },
+                onVADMisfire: () => {
+                    console.log('[VAD] False trigger detected');
+                }
+            },
             onTranscript: (text) => {
-                console.log('\n[USER] Input:', text);
+                console.log('\n[USER] Said:', text);
             },
             onResponse: (text) => {
                 process.stdout.write(text);
@@ -77,7 +83,7 @@ async function main() {
     try {
         await pipeline.startTextChat();
     } catch (error) {
-        console.error('[ERROR] Failed to start text chat:', error);
+        console.error('[ERROR] Failed to start voice chat:', error);
         process.exit(1);
     }
 }

@@ -1,8 +1,9 @@
 import { TranscriptionService, TranscriptionConfig } from './TranscriptionService.js';
 import { ContextManager } from './ContextManager.js';
+import { VADService, VADConfig } from './VADService.js';
 export { ContextManager };
-import mic from 'node-microphone';
 import readline from 'readline';
+
 export interface LLMConfig {
     model?: string;
     maxTokens?: number;
@@ -58,6 +59,7 @@ export interface PipelineConfig {
     transcriptionConfig?: TranscriptionConfig;
     llmConfig?: LLMConfig;
     ttsConfig?: TTSConfig;
+    vadConfig?: VADConfig;
     textOnly?: boolean;
     textChatOptions?: TextChatOptions;
     contextManager?: ContextManager;
@@ -71,10 +73,10 @@ export class Pipeline {
     private transcriptionService: TranscriptionService;
     private llmService: LLMService;
     private ttsService: TTSService;
+    public vadService: VADService;
     private config: PipelineConfig;
     private contextManager: ContextManager | undefined;
     private isActive: boolean = false;
-    private microphone: any = null;
     private rl: readline.Interface | null = null;
 
     constructor(
@@ -88,6 +90,22 @@ export class Pipeline {
         this.llmService = llmService;
         this.ttsService = ttsService;
         this.config = config;
+        
+        // Initialize VAD service
+        this.vadService = new VADService({
+            onSpeechStart: () => {
+                console.log('[PIPELINE] Speech detected, starting transcription...');
+            },
+            onSpeechEnd: async (audio: Float32Array) => {
+                console.log('[PIPELINE] Speech ended, processing audio...');
+                // Convert Float32Array to Buffer for transcription
+                const buffer = Buffer.from(audio.buffer);
+                if (this.transcriptionService.isReady()) {
+                    await this.transcriptionService.sendAudio(buffer);
+                }
+            },
+            ...config.vadConfig
+        });
         
         // Initialize context manager from either source
         this.contextManager = contextManager || config.contextManager;
@@ -130,16 +148,9 @@ export class Pipeline {
 
         try {
             if (!this.config.textOnly) {
-                // Initialize microphone
-                console.log('[INIT] Initializing microphone');
-                try {
-                    this.microphone = new mic();
-                    console.log('[INIT] Microphone initialized successfully');
-                } catch (error) {
-                    const errorMsg = 'Failed to initialize microphone. Make sure your microphone is connected and accessible.';
-                    console.error('[ERROR]', errorMsg, error);
-                    throw new Error(errorMsg);
-                }
+                // Start VAD service
+                console.log('[INIT] Starting voice activity detection');
+                await this.vadService.start();
 
                 // Start transcription service
                 console.log('[STT] Starting transcription service');
@@ -149,21 +160,6 @@ export class Pipeline {
                     language: 'en-US',
                     encoding: 'linear16',
                     sampleRate: 16000,
-                });
-
-                // Start recording
-                console.log('[MIC] Starting audio recording');
-                const audioStream = this.microphone.startRecording();
-                console.log('[MIC] Audio recording started');
-
-                audioStream.on('data', (data: Buffer) => {
-                    if (this.transcriptionService.isReady()) {
-                        this.transcriptionService.sendAudio(data);
-                    }
-                });
-
-                audioStream.on('error', (error: Error) => {
-                    this.handleError(error);
                 });
             } else {
                 console.log('\n[INIT] Starting pipeline in text-only mode');
@@ -183,9 +179,9 @@ export class Pipeline {
         }
 
         try {
-            if (!this.config.textOnly && this.microphone) {
-                console.log('🛑 Stopping recording...');
-                this.microphone.stopRecording();
+            if (!this.config.textOnly) {
+                console.log('👋 Stopping VAD service...');
+                await this.vadService.stop();
                 
                 console.log('👋 Stopping transcription service...');
                 await this.transcriptionService.stop();
@@ -318,6 +314,40 @@ export class Pipeline {
         });
     }
 
+    async startVoiceChat(): Promise<void> {
+        if (this.config.textOnly) {
+            throw new Error('Voice chat is not available in text-only mode');
+        }
+
+        if (this.isActive) {
+            throw new Error('Pipeline is already active');
+        }
+
+        try {
+            console.log('\n[INIT] Starting voice chat...');
+            console.log('[SYSTEM] ----------------------------------------');
+            console.log('[SYSTEM] Voice chat started. Start speaking when ready.');
+            console.log('[SYSTEM] Press Ctrl+C to exit.');
+            
+            await this.start();
+
+            // Keep the process running
+            return new Promise((resolve) => {
+                process.on('SIGINT', async () => {
+                    console.log('\n[SYSTEM] ----------------------------------------');
+                    console.log('[SYSTEM] Stopping voice chat...');
+                    await this.stop();
+                    console.log('[SYSTEM] Voice chat ended. Goodbye!\n');
+                    resolve();
+                    process.exit(0);
+                });
+            });
+        } catch (error) {
+            this.handleError(error as Error);
+            throw error;
+        }
+    }
+
     private handleError(error: Error): void {
         if (this.config.textOnly) {
             console.log('\n[SYSTEM] ----------------------------------------');
@@ -326,5 +356,9 @@ export class Pipeline {
         if (this.config.onError) {
             this.config.onError(error);
         }
+    }
+
+    setAudioPlayingState(isPlaying: boolean) {
+        this.vadService.setAudioPlayingState(isPlaying);
     }
 } 
