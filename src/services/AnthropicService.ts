@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { LLMService, LLMConfig } from './Pipeline.js';
+import { LLMService, LLMConfig, LLMResponse } from './Pipeline.js';
 import { Message } from './ContextManager.js';
 
 interface AnthropicMessage {
@@ -16,7 +16,7 @@ export class AnthropicService implements LLMService {
         this.config = config;
     }
 
-    async *processText(text: string): AsyncGenerator<string> {
+    async *processText(text: string): AsyncGenerator<LLMResponse> {
         let messages;
         try {
             // Try to parse the input as a message array
@@ -53,7 +53,7 @@ export class AnthropicService implements LLMService {
             if (chunk.type === 'content_block_delta' && 'text' in chunk.delta) {
                 const content = chunk.delta.text;
                 if (content) {
-                    yield content;
+                    yield { content };
                 }
             }
         }

@@ -18,13 +18,47 @@ const __dirname = path.dirname(__filename);
 async function main() {
     const player = playSound({});
 
-    // Initialize services
-    console.log('🚀 Initializing services...');
     const sttService = new DeepgramService(process.env.DEEPGRAM_API_KEY || '');
     const llmService = new OpenAIService(process.env.OPENAI_API_KEY || '', {
-        model: "gpt-3.5-turbo",
+        model: "gpt-4",
         maxTokens: 100,
-        systemPrompt: "You are a helpful AI assistant. Keep responses concise and natural."
+        systemPrompt: "You are a helpful AI assistant. When users mention bananas, use the log_banana_mention function. When users mention apples, use the log_apple_mention function.",
+        tools: [{
+            name: "log_banana_mention",
+            description: "Log when someone talks about bananas",
+            parameters: {
+                type: "object",
+                properties: {
+                    message: {
+                        type: "string",
+                        description: "The message containing banana-related content"
+                    }
+                },
+                required: ["message"]
+            }
+        },
+        {
+            name: "log_apple_mention",
+            description: "Log when someone talks about apples",
+            parameters: {
+                type: "object",
+                properties: {
+                    message: {
+                        type: "string",
+                        description: "The message containing apple-related content"
+                    }
+                },
+                required: ["message"]
+            }
+        }],
+        functionHandlers: {
+            log_banana_mention: (args: { message: string }) => {
+                console.log('🍌 [BANANA MENTION]:', args.message);
+            },
+            log_apple_mention: (args: { message: string }) => {
+                console.log('🍎 [APPLE MENTION]:', args.message);
+            }
+        }
     });
     // const llmService = new AnthropicService(process.env.ANTHROPIC_API_KEY || '', {
     //     model: "claude-3-sonnet-20240229",
@@ -41,7 +75,7 @@ async function main() {
 
     // Initialize ContextManager before creating the pipeline
     const contextManager = new ContextManager();
-    console.log('📝 Context Manager initialized');
+    console.log('[INIT] Context manager initialized');
 
     // Create the pipeline in text-only mode with context manager
     const pipeline = new Pipeline(
@@ -52,45 +86,41 @@ async function main() {
             textOnly: true,
             contextManager: contextManager,
             onTranscript: (text) => {
-                console.log('\n👤 User:', text);
+                console.log('\n[USER] Input:', text);
             },
             onResponse: (text) => {
                 process.stdout.write(text);
             },
             onAudioReady: async (audio) => {
                 try {
-                    // Create a temporary file to store the audio
                     const tempFile = path.join(__dirname, `temp-${Date.now()}.wav`);
                     await fs.writeFile(tempFile, audio);
 
-                    console.log('🔊 Playing response...');
-                    // Play the audio file
+                    console.log('[TTS] Playing audio response');
                     player.play(tempFile, (err?: Error) => {
                         if (err) {
-                            console.error('❌ Error playing audio:', err);
+                            console.error('[ERROR] Audio playback failed:', err);
                         }
-                        // Delete the temporary file after playing
                         fs.unlink(tempFile).catch(err => {
-                            console.error('❌ Error deleting temp file:', err);
+                            console.error('[ERROR] Failed to delete temp file:', err);
                         });
                     });
                 } catch (error) {
-                    console.error('❌ Error handling audio:', error);
+                    console.error('[ERROR] Audio handling failed:', error);
                 }
             }
         }
     );
 
     try {
-        // Start the text chat interface
         await pipeline.startTextChat();
     } catch (error) {
-        console.error('\n❌ Failed to start text chat:', error);
+        console.error('[ERROR] Failed to start text chat:', error);
         process.exit(1);
     }
 }
 
 main().catch(error => {
-    console.error('❌ Unhandled error:', error);
+    console.error('[ERROR] Unhandled error:', error);
     process.exit(1);
 }); 

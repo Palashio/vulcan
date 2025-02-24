@@ -3,15 +3,31 @@ import { ContextManager } from './ContextManager.js';
 export { ContextManager };
 import mic from 'node-microphone';
 import readline from 'readline';
-
 export interface LLMConfig {
     model?: string;
     maxTokens?: number;
     systemPrompt?: string;
+    tools?: FunctionTool[];
+    functionHandlers?: Record<string, (args: any) => void>;
+}
+
+export interface FunctionTool {
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+}
+
+export interface LLMResponse {
+    content?: string;
+    functionCall?: {
+        name: string;
+        arguments: string;
+    };
 }
 
 export interface LLMService {
-    processText(text: string): AsyncGenerator<string>;
+    processText(text: string, tools?: FunctionTool[]): AsyncGenerator<LLMResponse>;
+    tools?: FunctionTool[];
 }
 
 export interface TTSConfig {
@@ -76,7 +92,7 @@ export class Pipeline {
         // Initialize context manager from either source
         this.contextManager = contextManager || config.contextManager;
         if (this.contextManager) {
-            console.log('🔄 Initializing context manager...');
+            console.log('[INIT] Initializing context manager');
             this.contextManager.setLLMService(llmService);
         }
 
@@ -88,7 +104,7 @@ export class Pipeline {
                 textChatOptions: {
                     prompt: '> ',
                     exitCommand: 'exit',
-                    startMessage: '✨ Interactive chat session started\n📝 Type your messages and press Enter\n❌ Type "exit" to quit\n',
+                    startMessage: '[SYSTEM] Interactive chat session started\n[SYSTEM] Type your messages and press Enter\n[SYSTEM] Type "exit" to quit\n',
                     ...config.textChatOptions
                 }
             };
@@ -101,8 +117,8 @@ export class Pipeline {
                     await this.processTranscript(text);
                 },
                 onError: (error) => this.handleError(error),
-                onReady: () => console.log('🎤 Transcription service ready'),
-                onClose: () => console.log('🔴 Transcription service closed')
+                onReady: () => console.log('[STT] Transcription service ready'),
+                onClose: () => console.log('[STT] Transcription service closed')
             });
         }
     }
@@ -115,18 +131,18 @@ export class Pipeline {
         try {
             if (!this.config.textOnly) {
                 // Initialize microphone
-                console.log('🎙️ Initializing microphone...');
+                console.log('[INIT] Initializing microphone');
                 try {
                     this.microphone = new mic();
-                    console.log('✅ Microphone initialized');
+                    console.log('[INIT] Microphone initialized successfully');
                 } catch (error) {
                     const errorMsg = 'Failed to initialize microphone. Make sure your microphone is connected and accessible.';
-                    console.error('❌', errorMsg, error);
+                    console.error('[ERROR]', errorMsg, error);
                     throw new Error(errorMsg);
                 }
 
                 // Start transcription service
-                console.log('🌐 Starting transcription service...');
+                console.log('[STT] Starting transcription service');
                 await this.transcriptionService.start(this.config.transcriptionConfig || {
                     model: "nova-3",
                     punctuate: true,
@@ -136,9 +152,9 @@ export class Pipeline {
                 });
 
                 // Start recording
-                console.log('🎙️ Starting audio recording...');
+                console.log('[MIC] Starting audio recording');
                 const audioStream = this.microphone.startRecording();
-                console.log('✅ Audio recording started');
+                console.log('[MIC] Audio recording started');
 
                 audioStream.on('data', (data: Buffer) => {
                     if (this.transcriptionService.isReady()) {
@@ -150,8 +166,8 @@ export class Pipeline {
                     this.handleError(error);
                 });
             } else {
-                console.log('\n🔮 Starting pipeline in text-only mode...');
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+                console.log('\n[INIT] Starting pipeline in text-only mode');
+                console.log('[SYSTEM] ----------------------------------------\n');
             }
 
             this.isActive = true;
@@ -189,42 +205,41 @@ export class Pipeline {
 
     async processTranscript(text: string): Promise<void> {
         try {
-            // Notify about received transcript
-            if (this.config.onTranscript) {
-                if (this.config.textOnly) {
-                    console.log('\n👤 User:');
-                }
+            // Print user input
+            if (this.config.textOnly) {
+                console.log('\n[USER] Input:', text);
+            } else if (this.config.onTranscript) {
                 this.config.onTranscript(text);
-            }
-
-            // Store user's message in context if contextManager exists
-            if (this.contextManager) {
-                this.contextManager.addMessage('user', text);
-                console.log('\n📝 Context updated - Latest messages:', this.contextManager.getRecentMessages());
             }
 
             // Process through ContextManager or directly through LLM
             if (this.config.textOnly) {
-                console.log('\n🤖 Assistant:');
+                console.log('\n[ASSISTANT] Response:');
             }
             let fullResponse = '';
             
             const responseGenerator = this.contextManager 
-                ? this.contextManager.processWithContext(text)
+                ? this.contextManager.processWithContext(text, this.llmService.tools)
                 : this.llmService.processText(text);
 
             for await (const chunk of responseGenerator) {
-                if (this.config.onResponse) {
-                    this.config.onResponse(chunk);
+                // Print response chunks
+                if (chunk.content) {
+                    if (this.config.textOnly) {
+                        process.stdout.write(chunk.content);
+                    } else if (this.config.onResponse) {
+                        this.config.onResponse(chunk.content);
+                    }
+                    fullResponse += chunk.content;
                 }
-                fullResponse += chunk;
             }
 
-            // Store assistant's response in context if contextManager exists
-            if (fullResponse && this.contextManager) {
-                this.contextManager.addMessage('assistant', fullResponse);
-                console.log('\n📝 Context updated after assistant response:', this.contextManager.getRecentMessages());
-                console.log('\n🤖 Full Assistant Response:', fullResponse);
+            // Log the final context state if using context manager
+            if (this.contextManager) {
+                console.log('\n[CONTEXT] Latest messages:', this.contextManager.getRecentMessages());
+                if (fullResponse) {
+                    console.log('\n[ASSISTANT] Full response:', fullResponse);
+                }
             }
 
             if (fullResponse) {
@@ -271,7 +286,7 @@ export class Pipeline {
             output: process.stdout
         });
 
-        const { prompt = '> ', exitCommand = 'exit', startMessage = '✨ Interactive chat session started\n📝 Type your messages and press Enter\n❌ Type "exit" to quit\n' } = this.config.textChatOptions || {};
+        const { prompt = '> ', exitCommand = 'exit', startMessage = '[SYSTEM] Interactive chat session started\n[SYSTEM] Type your messages and press Enter\n[SYSTEM] Type "exit" to quit\n' } = this.config.textChatOptions || {};
 
         console.log(startMessage);
         this.rl.setPrompt(prompt);
@@ -280,8 +295,8 @@ export class Pipeline {
         // Handle user input
         this.rl.on('line', async (input) => {
             if (input.toLowerCase() === exitCommand) {
-                console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                console.log('👋 Ending chat session...');
+                console.log('\n[SYSTEM] ----------------------------------------');
+                console.log('[SYSTEM] Ending chat session...');
                 await this.stop();
                 this.rl?.close();
                 return;
@@ -291,23 +306,23 @@ export class Pipeline {
                 await this.sendText(input);
                 this.rl?.prompt();
             } catch (error) {
-                console.error('❌ Error processing input:', error);
+                console.error('[ERROR] Error processing input:', error);
                 this.rl?.prompt();
             }
         });
 
         // Handle readline close
         this.rl.on('close', () => {
-            console.log('✨ Chat session ended. Goodbye!\n');
+            console.log('[SYSTEM] Chat session ended. Goodbye!\n');
             process.exit(0);
         });
     }
 
     private handleError(error: Error): void {
         if (this.config.textOnly) {
-            console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('\n[SYSTEM] ----------------------------------------');
         }
-        console.error('❌ Error:', error);
+        console.error('[ERROR]:', error);
         if (this.config.onError) {
             this.config.onError(error);
         }
